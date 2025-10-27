@@ -6,6 +6,8 @@ from layers.SelfAttention_Family import FullAttention, AttentionLayer
 from layers.Embed import DataEmbedding_inverted
 import numpy as np
 
+from layers.TestModules import *
+
 
 class Model(nn.Module):
     """
@@ -46,6 +48,20 @@ class Model(nn.Module):
             self.act = F.gelu
             self.dropout = nn.Dropout(configs.dropout)
             self.projection = nn.Linear(configs.d_model * configs.enc_in, configs.num_class)
+            
+        ## Test Modules
+        ### MultiScaleInput
+        
+        self.multi_scale_input_generator = MultiScaleAsEmbedding(
+                                                n_scales=3,
+                                                target_len=configs.seq_len,
+                                                d_model=configs.d_model,
+                                                down_mode='conv',
+                                                dropout=0.1,
+                                                temperature=0.5,
+                                                fuse_dim=None,
+                                            )
+        
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
         # Normalization from Non-stationary Transformer
@@ -57,7 +73,8 @@ class Model(nn.Module):
         _, _, N = x_enc.shape
 
         # Embedding
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)
+        enc_out = self.multi_scale_input_generator(x_enc, x_mark_enc)
+        # enc_out = self.enc_embedding(feats, None)
         enc_out, attns = self.encoder(enc_out, attn_mask=None)
 
         dec_out = self.projection(enc_out).permute(0, 2, 1)[:, :, :N]
